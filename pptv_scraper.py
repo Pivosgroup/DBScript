@@ -8,7 +8,7 @@ from pinyin_dict import pinyin_dict
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
 
 
-class PPTVClass():
+class PPTVClass(object):
     HOMEHOST = 'tv.api.pptv.com'
     LISTHOST = 'epg.androidtv.cp61.ott.cibntv.net'
     DETAILHOST = 'epg.api.cp61.ott.cibntv.net'
@@ -28,15 +28,15 @@ class PPTVClass():
         self.LOCAL_DEBUG = LocalDebug
 
     def get_home_content(self):
-        return util.GetHttpData(self.HOMEAPI + 'four/home?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI))
+        return requests.get(self.HOMEAPI + 'four/home?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI)).json()
 
     def get_recommended_config(self):
-        return util.GetHttpData(self.HOMEAPI + 'rcmdNavConfig?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI), use_qua=False)
+        return requests.get(self.HOMEAPI + 'rcmdNavConfig?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI), use_qua=False).json()
 
     def get_channel_config(self):
-        return util.GetHttpData(self.HOMEAPI + 'channel_config?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI), use_qua=False)
+        return requests.get(self.HOMEAPI + 'channel_config?version={version}&channel_id={channel_id}&ppi={ppi}'.format(version="4.0.3", channel_id="1110141", ppi=self.PPI), use_qua=False).json()
 
-    def get_channel_list_config(self, typeId, pn=1, ps=32, str_filter=None, sortType='hot'):
+    def get_channel_list(self, typeId, pn=1, ps=32, str_filter=None, sortType='hot'):
         url = self.LISTAPI + \
             'newList.api?auth={auth}&appver={appver}&canal={canal}&appid={appid}&appplt={appplt}&hasVirtual={hasVirtual}&typeId={typeId}&ps={ps}&pn={pn}&sortType={sortType}&contype={contype}&coverPre={coverPre}&ppi={ppi}&format={format}&isShowNav={isShowNav}&cannelSource={cannelSource}&ver={ver}'
         url = url.format(
@@ -58,7 +58,6 @@ class PPTVClass():
             cannelSource="VST",
             ver="1"
         )
-        print(url)
         if str_filter:
             url = url + '&' + str_filter
         return requests.get(url).json()
@@ -177,8 +176,8 @@ if __name__ == "__main__":
         pptv_cursor = pp_conn.cursor()
         mo = Movies(cursor, pptv_cursor)
         pptv = PPTVClass()
-        s = pptv.get_channel_list_config(1, pn=1, ps=1000)
-        totle_count = s['count']
+        s = pptv.get_channel_list(1, pn=1, ps=1000)
+        total_count = s['count']
         for item in s['videos']:
             # print(str(count) + item['title'].encode('gbk'))
             # print(get_sorttitle(item['title']).encode('gbk'))

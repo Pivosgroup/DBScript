@@ -120,6 +120,7 @@ class Movies():
         # item details
         writer = item.get('writer')
         director = item.get('director')
+        directors = director.split(" / ")
         genre = item.get('genre')
         genres = item.get('genres')
         plot = item.get('plot')
@@ -222,6 +223,7 @@ class Movies():
         # Process cast
         # print([{"type": "actor", "name": actor} for actor in item['actors']])
         people = [{"type": "actor", "name": actor} for actor in item['actors']]
+        people += [{"type": "director", "name": name} for name in directors]
         self.kodi_db.add_people(movieid, people, "movie")
         # Process genres
         self.kodi_db.add_genres(movieid, genres, "movie")

@@ -104,7 +104,8 @@ class Movies():
         # If the item doesn't exist, we'll add it to the database
         update_item = True
         title = item['title']
-        itemid = item['id']
+        itemid = item['source_id']
+        source_type = item['source_type']
         source_item = self.source_db.getItem_byId(itemid)
         try:
             movieid = source_item[0]
@@ -207,7 +208,7 @@ class Movies():
                                        country)
 
             # Create the reference in emby table
-            self.source_db.addReference(itemid, movieid, "Movie", "movie", fileid, pathid, None,
+            self.source_db.addReference(itemid, movieid, source_type, "movie", fileid, pathid, None,
                                  "checksum")
 
         # Update the path
@@ -242,27 +243,21 @@ class Movies():
 
     def add_updateBoxset(self, boxset):
 
-        emby = self.emby
-        emby_db = self.emby_db
-        artwork = self.artwork
-        API = api.API(boxset)
-
-        boxsetid = boxset['Id']
-        title = boxset['Name']
-        checksum = API.get_checksum()
-        emby_dbitem = emby_db.getItem_byId(boxsetid)
+        boxsetid = boxset['id']
+        title = boxset['name']
+        setartwork = boxset['artwork']
+        dbitem = self.source_db.getItem_byId(boxsetid)
         try:
-            setid = emby_dbitem[0]
+            setid = dbitem[0]
             self.kodi_db.update_boxset(setid, title)
         except TypeError:
             setid = self.kodi_db.add_boxset(title)
 
         # Process artwork
-        artwork.add_artwork(artwork.get_all_artwork(
-            boxset), setid, "set", self.kodicursor)
+        self.kodi_db.add_artwork(setartwork, setid, "set")
 
         # Process movies inside boxset
-        current_movies = emby_db.getItemId_byParentId(setid, "movie")
+        current_movies = self.source_db.getItemId_byParentId(setid, "movie")
         process = []
         try:
             # Try to convert tuple to dictionary
@@ -275,23 +270,23 @@ class Movies():
             process.append(current_movie)
 
         # New list to compare
-        for movie in emby.getMovies_byBoxset(boxsetid)['Items']:
+        for movie in boxset['items']:
 
-            itemid = movie['Id']
+            itemid = movie['id']
 
             if not current.get(itemid):
                 # Assign boxset to movie
-                emby_dbitem = emby_db.getItem_byId(itemid)
+                movie_item = self.source_db.getItem_byId(itemid)
                 try:
-                    movieid = emby_dbitem[0]
+                    movieid = movie_item[0]
                 except TypeError:
-                    log.info("Failed to add: %s to boxset", movie['Name'])
+                    log.info("Failed to add: %s to boxset", movie['title'])
                     continue
 
-                log.info("New addition to boxset %s: %s", title, movie['Name'])
+                log.info("New addition to boxset %s: %s", title, movie['title'])
                 self.kodi_db.set_boxset(setid, movieid)
                 # Update emby reference
-                emby_db.updateParentId(itemid, setid)
+                self.source_db.updateParentId(itemid, setid)
             else:
                 # Remove from process, because the item still belongs
                 process.remove(itemid)
@@ -302,58 +297,28 @@ class Movies():
             log.info("Remove from boxset %s: %s", title, movieid)
             self.kodi_db.remove_from_boxset(movieid)
             # Update emby reference
-            emby_db.updateParentId(movie, None)
+            self.source_db.updateParentId(movie, None)
 
         # Update the reference in the emby table
-        emby_db.addReference(boxsetid, setid, "BoxSet",
-                             mediatype="set", checksum=checksum)
+        self.source_db.addReference(boxsetid, setid, "BoxSet", mediatype="set")
+
+    def update_artist_artwork(self):
+        people = self.kodi_db.get_no_artwork_person()
+        for person in people:
+            if self.kodi_db.update_artwork_from_douban(person[1], 'actor', person[0]):
+                print((person[1] + "\t\tOK!").encode('gbk'))
+            else:
+                print((person[1] + "\t\tFail!").encode('gbk'))
 
     def updateUserdata(self, item):
         # This updates: Favorite, LastPlayedDate, Playcount, PlaybackPositionTicks
         # Poster with progress bar
-        emby_db = self.emby_db
-        API = api.API(item)
-
-        # Get emby information
-        itemid = item['Id']
-        checksum = API.get_checksum()
-        userdata = API.get_userdata()
-        runtime = API.get_runtime()
-
-        # Get Kodi information
-        emby_dbitem = emby_db.getItem_byId(itemid)
-        try:
-            movieid = emby_dbitem[0]
-            fileid = emby_dbitem[1]
-            log.info("Update playstate for movie: %s fileid: %s",
-                     item['Name'], fileid)
-        except TypeError:
-            return
-
-        # Process favorite tags
-        if userdata['Favorite']:
-            self.kodi_db.get_tag(movieid, "Favorite movies", "movie")
-        else:
-            self.kodi_db.remove_tag(movieid, "Favorite movies", "movie")
-
-        # Process playstates
-        playcount = userdata['PlayCount']
-        dateplayed = userdata['LastPlayedDate']
-        resume = API.adjust_resume(userdata['Resume'])
-        total = round(float(runtime), 6)
-
-        log.debug("%s New resume point: %s", itemid, resume)
-
-        self.kodi_db.add_playstate(
-            fileid, resume, total, playcount, dateplayed)
-        emby_db.updateReference(itemid, checksum)
+        pass
 
     def remove(self, itemid):
         # Remove movieid, fileid, emby reference
-        emby_db = self.emby_db
-        artwork = self.artwork
 
-        emby_dbitem = emby_db.getItem_byId(itemid)
+        emby_dbitem = self.source_db.getItem_byId(itemid)
         try:
             kodiid = emby_dbitem[0]
             fileid = emby_dbitem[1]
@@ -363,9 +328,9 @@ class Movies():
             return
 
         # Remove the emby reference
-        emby_db.removeItem(itemid)
+        self.source_db.removeItem(itemid)
         # Remove artwork
-        artwork.delete_artwork(kodiid, mediatype, self.kodicursor)
+        self.kodi_db.delete_artwork(kodiid, mediatype)
 
         if mediatype == "movie":
             self.kodi_db.remove_movie(kodiid, fileid)

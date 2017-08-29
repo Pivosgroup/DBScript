@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
-import json
 import requests
+
+from common import *
 from movies import Movies
-from pinyin_dict import pinyin_dict
+
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
 
 
@@ -115,32 +116,12 @@ class PPTVClass(object):
         return requests.get(self.TOPICAPI + tid + '?version={version}&channel_id={channel_id}&user_level={user_level}'.format(version="4.0.3", channel_id="200026", user_level="0")).json()
 
 
-def add_movie(item):
-    pass
-
-
-def get_pinyin_first(u_char):
-    char = ord(u_char)
-    if char in pinyin_dict:
-        return pinyin_dict[char][0]
-    else:
-        return ''
-
-
-def get_sorttitle(title):
-    return_list = []
-    for one in title:
-        return_list.append(get_pinyin_first(one))
-        return_list.append(one)
-    return ''.join(return_list)
-
-
 def item_remap(item):
     pptv = PPTVClass()
     pptv_id = item['vid']
-    detail = pptv.get_video_detail(pptv_id)['v']
+    isVST = pptv_id < 0
+    detail = dict() if isVST else pptv.get_video_detail(pptv_id)['v']
     return {
-        "id": item.get('vid'),
         "title": item.get('title'),
         "dateadded": item.get('updatetime'),
         "writer": '',
@@ -160,11 +141,48 @@ def item_remap(item):
         "shortplot": item.get('subTitle'),
         "trailer": '',
         "mpaa": '',
-        "source_id": pptv_id,
+        "source_type": 'VST' if isVST else "pptv",
+        "source_id": item['uuid'] if isVST else pptv_id,
+        "id": item['uuid'] if isVST else pptv_id,
         "playurl": "plugin://plugin.video.bigmovies/play/" + str(pptv_id),
         "path": "plugin://plugin.video.bigmovies/",
         "artwork": {
-            "poster": detail['imgurl']
+            "poster": item['imgurl']
+        }
+    }
+
+
+def setitem_remap(set_item):
+    item = set_item['_attributes']
+    pptv_id = item['id']
+    detail = pptv.get_video_detail(pptv_id)['v']
+    return {
+        "title": item.get('title'),
+        "dateadded": detail.get('onlinetime'),
+        "writer": '',
+        "director": ' / '.join(detail.get('director').split(',')),
+        "actors": detail.get('act').split(','),
+        "genres": detail.get('catalog').split(','),
+        "genre": ' / '.join(detail.get('catalog').split(',')),
+        "tags": [],
+        "plot": detail.get('content'),
+        "tagline": '',
+        "rating": detail.get('douBanScore'),
+        "year": detail.get('year'),
+        "runtime": detail.get('durationSecond'),
+        "country": detail.get('area'),
+        "studio": '',
+        "sorttitle": get_sorttitle(item.get('title')),
+        "shortplot": detail.get('subTitle'),
+        "trailer": '',
+        "mpaa": '',
+        "source_type": "pptv",
+        "source_id": pptv_id,
+        "id": pptv_id,
+        "playurl": "plugin://plugin.video.bigmovies/play/" + str(pptv_id),
+        "path": "plugin://plugin.video.bigmovies/",
+        "artwork": {
+            "poster": item['imgurl']
         }
     }
 
@@ -176,11 +194,30 @@ if __name__ == "__main__":
         pptv_cursor = pp_conn.cursor()
         mo = Movies(cursor, pptv_cursor)
         pptv = PPTVClass()
-        s = pptv.get_channel_list(1, pn=1, ps=1000)
-        total_count = s['count']
-        for item in s['videos']:
-            # print(str(count) + item['title'].encode('gbk'))
-            # print(get_sorttitle(item['title']).encode('gbk'))
-            mo.add_update(item_remap(item))
+        try:
+            # mo.update_artist_artwork()
+            s = pptv.get_channel_list(1, pn=1, ps=1000)
+            total_count = s['count']
+            page_count = s['page_count']
+            for index, item in enumerate(s['videos']):
+                print_progress(item['title'].encode("gbk"), index, 1000, "Working: ")
+                if item['vt'] == 22:  # movie set
+                    set_detail = pptv.get_video_detail(item['vid'])['v']
+                    if "video_list" not in set_detail:
+                        continue
+                    movielist = set_detail['video_list']['playlink2']
+                    if isinstance(movielist, dict):
+                        movielist = [movielist]
+                    boxset = {
+                        "name": item["title"],
+                        "id": item['vid'],
+                        "artwork": {"poster": item['imgurl']},
+                        "items": map(setitem_remap, movielist)
+                    }
+                    mo.add_updateBoxset(boxset)
+                mo.add_update(item_remap(item))
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
         pp_conn.commit()
         kodi_conn.commit()

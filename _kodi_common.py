@@ -3,7 +3,7 @@
 ##################################################################################################
 
 import logging
-
+from douban_artwork import DoubanArtwork
 
 ##################################################################################################
 
@@ -172,6 +172,16 @@ class KodiItems(object):
 
         return filename
 
+    def update_artwork_from_douban(self, name, type_, person_id=None):
+        imageurl = DoubanArtwork.get_artist_artwork(name)
+        if not person_id:
+            person_id = self._get_person(name)
+        if imageurl != "" and type_ in ['actor', 'director', 'writer']:
+            self.add_update_art(imageurl, person_id, type_, "thumb")
+            return True
+        else:
+            return False
+
     def add_artwork(self, artwork, kodi_id, media_type):
 
         supported_artwork = ["poster", "poster", "banner", "clearlogo", "clearart", "landscape", "fanart", "discart"]
@@ -215,31 +225,22 @@ class KodiItems(object):
                 )
                 self.cursor.execute(query, (kodi_id, media_type, image_type, image_url))
 
-            # else:  # Only cache artwork if it changed
-            #     if url != image_url:
+            else:  # Only cache artwork if it changed
+                if url != image_url:
 
-            #         cache_image = True
+                    cache_image = True
 
-            #         # Only for the main backdrop, poster
-            #         if (window('emby_initialScan') != "true" and
-            #                 image_type in ("fanart", "poster")):
-            #             # Delete current entry before updating with the new one
-            #             self.delete_cached_artwork(url)
+                    query = ' '.join((
 
-            #         log.info("Updating Art url for %s kodiId: %s (%s) -> (%s)",
-            #                  image_type, kodi_id, url, image_url)
+                        "UPDATE art",
+                        "SET url = ?",
+                        "WHERE media_id = ?",
+                        "AND media_type = ?",
+                        "AND type = ?"
+                    ))
+                    self.cursor.execute(query, (image_url, kodi_id, media_type, image_type))
 
-            #         query = ' '.join((
-
-            #             "UPDATE art",
-            #             "SET url = ?",
-            #             "WHERE media_id = ?",
-            #             "AND media_type = ?",
-            #             "AND type = ?"
-            #         ))
-            #         self.cursor.execute(query, (image_url, kodi_id, media_type, image_type))
-
-            # # Cache fanart and poster in Kodi texture cache
+            # Cache fanart and poster in Kodi texture cache
             # if cache_image and image_type in ("fanart", "poster"):
             #     self.cache_texture(image_url)
 
@@ -457,6 +458,28 @@ class KodiItems(object):
         log.debug("Add people to media, processing: %s", name)
 
         return person_id
+
+    def get_all_person(self):
+        query = ' '.join((
+
+            "SELECT actor_id, name",
+            "FROM actor"
+        ))
+        self.cursor.execute(query)
+        rows = self.cursor.fetchall()
+        return rows
+
+    def get_no_artwork_person(self):
+        query = ' '.join((
+            "SELECT actor_id, name",
+            "FROM actor",
+            "WHERE NOT EXISTS",
+            "(SELECT 1 FROM art",
+            "WHERE actor.actor_id == art.art_id)"
+        ))
+        self.cursor.execute(query)
+        rows = self.cursor.fetchall()
+        return rows
 
     def _get_person(self, name):
 

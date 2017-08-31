@@ -114,6 +114,12 @@ class Movies():
         except TypeError:
             update_item = False
             movieid = self.kodi_db.create_entry()
+        else:
+            if self.kodi_db.get_movie(movieid) is None:
+                # item is not found, let's recreate it.
+                update_item = False
+                log.info("movieid : %s missing from Kodi, repairing the entry", movieid)
+
 
         # fileId information
         dateadded = item.get('dateadded')

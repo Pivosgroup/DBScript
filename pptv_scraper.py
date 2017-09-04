@@ -8,6 +8,7 @@ from movies import Movies
 
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
 SETTING_IS_INCLUDE_VST = True
+SETTING_PAGE_SIZE = 1000
 
 
 class PPTVClass(object):
@@ -197,11 +198,17 @@ if __name__ == "__main__":
         pptv = PPTVClass()
         try:
             # mo.update_artist_artwork()
-            s = pptv.get_channel_list(1, pn=1, ps=1000)
+            s = pptv.get_channel_list(1, pn=1, ps=SETTING_PAGE_SIZE)
             total_count = s['count']
             page_count = s['page_count']
-            for index, item in enumerate(s['videos']):
-                print_progress(item['title'].encode("gbk"), index, 1000, "Working: ")
+            movie_list = s['videos']
+
+            for page_num in range(2, page_count + 1):
+                data = pptv.get_channel_list(1, pn=page_num, ps=SETTING_PAGE_SIZE)
+                movie_list += data["videos"]
+
+            for index, item in enumerate(movie_list):
+                print_progress(item['title'], index, total_count, "Working: ")
                 if item['vt'] == 22:  # movie set
                     set_detail = pptv.get_video_detail(item['vid'])['v']
                     if "video_list" not in set_detail:

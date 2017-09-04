@@ -215,6 +215,7 @@ if __name__ == "__main__":
                         "items": map(setitem_remap, movielist)
                     }
                     mo.add_updateBoxset(boxset)
+                    continue
                 mo.add_update(item_remap(item))
         except Exception as e:
             import traceback

@@ -7,7 +7,7 @@ from common import *
 from movies import Movies
 
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
-SETTING_IS_INCLUDE_VST = True
+SETTING_IS_INCLUDE_VST = False
 SETTING_PAGE_SIZE = 1000
 
 

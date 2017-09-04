@@ -19,17 +19,21 @@ def get_sorttitle(title):
     return ''.join(return_list)
 
 
+tmp_length = 0
+
+
 def print_progress(message, value, size, prefix="", progress_style="#"):
     toolbar_width = 60
 
     def get_bar(percent):
+        global tmp_length
         pro_count = int(percent * toolbar_width / 100)
-        template = prefix + "[%s%s] %.1f%%" % (progress_style * pro_count, " " * (toolbar_width - pro_count), percent)
+        template = prefix + "[%s%s] %.1f%% %s/%s" % (progress_style * pro_count, " " * (toolbar_width - pro_count), percent, value, size)
+        tmp_length = len(template)
         return template
 
-    sys.stdout.write("\b" * (toolbar_width + len(prefix) + 8))  # return to start of line, after '['
-    # sys.stdout.flush()
-    print(message + " " * (toolbar_width + len(prefix) + 10))
+    sys.stdout.write("\b" * tmp_length)  # return to start of line, after '['
+    print(message + " " * tmp_length)
     sys.stdout.write(get_bar(value * 100.0 / size))
     sys.stdout.flush()
 

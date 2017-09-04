@@ -7,6 +7,7 @@ from common import *
 from movies import Movies
 
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
+SETTING_IS_INCLUDE_VST = True
 
 
 class PPTVClass(object):
@@ -56,7 +57,7 @@ class PPTVClass(object):
             ppi=self.PPI,
             format="json",
             isShowNav="true",
-            cannelSource="VST",
+            cannelSource="VST" if SETTING_IS_INCLUDE_VST else "",
             ver="1"
         )
         if str_filter:
@@ -119,7 +120,7 @@ class PPTVClass(object):
 def item_remap(item):
     pptv = PPTVClass()
     pptv_id = item['vid']
-    isVST = pptv_id < 0
+    isVST = SETTING_IS_INCLUDE_VST and pptv_id < 0
     detail = dict() if isVST else pptv.get_video_detail(pptv_id)['v']
     return {
         "title": item.get('title'),

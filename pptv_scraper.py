@@ -197,6 +197,7 @@ if __name__ == "__main__":
         mo = Movies(cursor, pptv_cursor)
         pptv = PPTVClass()
         try:
+            skip = 0
             # mo.update_artist_artwork()
             s = pptv.get_channel_list(1, pn=1, ps=SETTING_PAGE_SIZE)
             total_count = s['count']
@@ -208,10 +209,11 @@ if __name__ == "__main__":
                 movie_list += data["videos"]
 
             for index, item in enumerate(movie_list):
-                print_progress(item['title'], index, total_count, "Working: ")
+                print_progress(item['title'].encode("gbk"), index + 1, total_count, "Working: ")
                 if item['vt'] == 22:  # movie set
                     set_detail = pptv.get_video_detail(item['vid'])['v']
                     if "video_list" not in set_detail:
+                        skip += 1
                         continue
                     movielist = set_detail['video_list']['playlink2']
                     if isinstance(movielist, dict):
@@ -222,9 +224,11 @@ if __name__ == "__main__":
                         "artwork": {"poster": item['imgurl']},
                         "items": map(setitem_remap, movielist)
                     }
+                    map(mo.add_update, boxset['items'])  # add the movie list to movie db
                     mo.add_updateBoxset(boxset)
                     continue
                 mo.add_update(item_remap(item))
+            print("skip : " + str(skip))
         except Exception as e:
             import traceback
             traceback.print_exc()

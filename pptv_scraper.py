@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 
 import sqlite3
+import urllib
 import requests
 
 from common import *
 from movies import Movies
+from tvshows import TVShows
 
 KODI_DATABASE_PATH = 'D:\\Program Files (x86)\\Kodi17\\portable_data\\userdata\\Database\\'
 SETTING_IS_INCLUDE_VST = False
@@ -123,12 +125,24 @@ def item_remap(item):
     pptv_id = item['vid']
     isVST = SETTING_IS_INCLUDE_VST and pptv_id < 0
     detail = dict() if isVST else pptv.get_video_detail(pptv_id)['v']
+    is_tvshows = detail['vt'] == "21" and 'video_list' in detail
+    if is_tvshows:  # tvshows
+        playlinks = detail['video_list']['playlink2']
+        seasons = []
+        kodi_path = "plugin://plugin.proxy.pptv.tvshow/" + str(pptv_id)
+        episodes = [{"title": c['_attributes']['title'],
+                    "episode_id": c['_attributes']['id'],
+                    "pic": c['_attributes']['sloturl'],
+                    "show_id": pptv_id,
+                    "file": kodi_path + "?" + urllib.urlencode({'playvid': c['_attributes']['id']}),
+                    "path": kodi_path} for c in playlinks]
     return {
         "title": item.get('title'),
         "dateadded": item.get('updatetime'),
         "writer": '',
         "director": ' / '.join(item.get('director').split(',')),
-        "actors": item.get('act').split(','),
+        "directors": detail.get("directors"),
+        "actors": detail.get('actors'),
         "genres": item.get('catalog').split(','),
         "genre": ' / '.join(item.get('catalog').split(',')),
         "tags": [],
@@ -146,11 +160,13 @@ def item_remap(item):
         "source_type": 'VST' if isVST else "pptv",
         "source_id": item['uuid'] if isVST else pptv_id,
         "id": item['uuid'] if isVST else pptv_id,
-        "playurl": "plugin://plugin.video.bigmovies/play/" + str(pptv_id),
-        "path": "plugin://plugin.video.bigmovies/",
+        "playurl": "plugin://plugin.proxy.pptv.movies/play/vst" + str(pptv_id),
+        "path": "plugin://plugin.proxy.pptv.movies/",
         "artwork": {
             "poster": item['imgurl']
-        }
+        },
+        "seasons": seasons if is_tvshows else [],
+        "episodes": episodes if is_tvshows else []
     }
 
 
@@ -163,7 +179,7 @@ def setitem_remap(set_item):
         "dateadded": detail.get('onlinetime'),
         "writer": '',
         "director": ' / '.join(detail.get('director').split(',')),
-        "actors": detail.get('act').split(','),
+        "actors": detail.get('actors'),
         "genres": detail.get('catalog').split(','),
         "genre": ' / '.join(detail.get('catalog').split(',')),
         "tags": [],
@@ -181,8 +197,8 @@ def setitem_remap(set_item):
         "source_type": "pptv",
         "source_id": pptv_id,
         "id": pptv_id,
-        "playurl": "plugin://plugin.video.bigmovies/play/" + str(pptv_id),
-        "path": "plugin://plugin.video.bigmovies/",
+        "playurl": "plugin://plugin.proxy.pptv.movies/play/" + str(pptv_id),
+        "path": "plugin://plugin.proxy.pptv.movies/",
         "artwork": {
             "poster": item['imgurl']
         }
@@ -194,23 +210,25 @@ if __name__ == "__main__":
             sqlite3.connect(KODI_DATABASE_PATH + "pptv.db", 120) as pp_conn:
         cursor = kodi_conn.cursor()
         pptv_cursor = pp_conn.cursor()
-        mo = Movies(cursor, pptv_cursor)
+        # mo = Movies(cursor, pptv_cursor)
+        tv = TVShows(cursor, pptv_cursor)
         pptv = PPTVClass()
         try:
             skip = 0
             # mo.update_artist_artwork()
-            s = pptv.get_channel_list(1, pn=1, ps=SETTING_PAGE_SIZE)
+            s = pptv.get_channel_list(2, pn=1, ps=SETTING_PAGE_SIZE)
             total_count = s['count']
             page_count = s['page_count']
             movie_list = s['videos']
 
             for page_num in range(2, page_count + 1):
-                data = pptv.get_channel_list(1, pn=page_num, ps=SETTING_PAGE_SIZE)
+                data = pptv.get_channel_list(2, pn=page_num, ps=SETTING_PAGE_SIZE)
                 movie_list += data["videos"]
 
             for index, item in enumerate(movie_list):
                 print_progress(item['title'].encode("gbk"), index + 1, total_count, "Working: ")
                 if item['vt'] == 22:  # movie set
+                    continue
                     set_detail = pptv.get_video_detail(item['vid'])['v']
                     if "video_list" not in set_detail:
                         skip += 1
@@ -225,12 +243,15 @@ if __name__ == "__main__":
                         "items": map(setitem_remap, movielist)
                     }
                     map(mo.add_update, boxset['items'])  # add the movie list to movie db
-                    mo.add_updateBoxset(boxset)
+                    tv.add_updateBoxset(boxset)
                     continue
-                mo.add_update(item_remap(item))
+                tv.add_update(item_remap(item))
             print("skip : " + str(skip))
         except Exception as e:
             import traceback
             traceback.print_exc()
+            set_progress(index)
+        else:
+            clear_progress()
         pp_conn.commit()
         kodi_conn.commit()

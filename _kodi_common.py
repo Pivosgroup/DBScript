@@ -299,7 +299,7 @@ class KodiItems(object):
 
                 # Link person to content
                 if type_ == "actor":
-                    role = person.get('Role')
+                    role = person.get('role')
                     query = (
                         '''
                         INSERT OR REPLACE INTO actor_link(
